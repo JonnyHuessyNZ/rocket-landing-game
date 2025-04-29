@@ -1,483 +1,649 @@
-import React, { useState, useEffect, useRef } from 'react';
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
 
-const RocketLandingGame = () => {
-  // Canvas dimensions
-  const CANVAS_WIDTH = 800;
-  const CANVAS_HEIGHT = 600;
-  
-  // Game state
-  const [gameState, setGameState] = useState('start'); // start, playing, landed, crashed, gameover
-  const [score, setScore] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [fuel, setFuel] = useState(1000);
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [playerName, setPlayerName] = useState('');
-  const [showNameInput, setShowNameInput] = useState(false);
-  
-  // Rocket state
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [velocity, setVelocity] = useState({ x: 0, y: 0 });
-  const [rotation, setRotation] = useState(0);
-  const [thrusting, setThrusting] = useState(false);
-  
-  // Landing pad state
-  const [padPosition, setPadPosition] = useState(0);
-  const padWidth = 100;
-  
-  // Game constants
-  const GRAVITY = 0.05;
-  const THRUST_POWER = 0.1;
-  const ROTATION_SPEED = 0.1;
-  const FUEL_CONSUMPTION = 2;
-  const ROCKET_WIDTH = 30;
-  const ROCKET_HEIGHT = 60;
-  const PAD_HEIGHT = 10;
-  
-  // References
-  const canvasRef = useRef(null);
-  const gameLoopRef = useRef(null);
-  const keysPressed = useRef({});
-  const rocketImage = useRef(null);
-  const backgroundImage = useRef(null);
-  const flameImage = useRef(null);
-  
-  // Load images
-  useEffect(() => {
-    const rocket = new Image();
-    rocket.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3QgeD0iMTAiIHk9IjUiIHdpZHRoPSIxMCIgaGVpZ2h0PSI1MCIgZmlsbD0ic2lsdmVyIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjEiIC8+PHBvbHlnb24gcG9pbnRzPSIxNSwwIDUsNSAyNSw1IiBmaWxsPSJyZWQiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgLz48cmVjdCB4PSI1IiB5PSI1MCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjUiIGZpbGw9ImdyYXkiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgLz48cmVjdCB4PSIwIiB5PSI0MCIgd2lkdGg9IjUiIGhlaWdodD0iMTAiIGZpbGw9ImJsdWUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgLz48cmVjdCB4PSIyNSIgeT0iNDAiIHdpZHRoPSI1IiBoZWlnaHQ9IjEwIiBmaWxsPSJibHVlIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjEiIC8+PC9zdmc+';
-    rocketImage.current = rocket;
-    
-    const background = new Image();
-    background.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cmFkaWFsR3JhZGllbnQgaWQ9InNreUdyYWQiIGN4PSI1MCUiIGN5PSI1MCUiIHI9IjUwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzg3Y2VmYSIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzEzNjJhOSIvPjwvcmFkaWFsR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI4MDAiIGhlaWdodD0iNDAwIiBmaWxsPSJ1cmwoI3NreUdyYWQpIi8+PHJlY3QgeD0iMCIgeT0iNDAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzMzNTkzMyIvPjxwYXRoIGQ9Ik0wLDQwMCBRMjAwLDM1MCA0MDAsNDIwIFE2MDAsMzgwIDgwMCw0MTAgTDgwMCw0MjAgUTYwMCwzOTAgNDAwLDQzMCBRMjAwLDM2MCAwLDQxMCBaIiBmaWxsPSIjMjIzMzIyIi8+PHBhdGggZD0iTTMwMCw0NDAgUTM1MCw0MjAgNDAwLDQ1MCBRNDUwLDQyMCA1MDAsNDUwIEw1MDAsMDYwIFE0NTAsNDMwIDQwMCw0NjAgUTM1MCw0MzAgMzAwLDQ1MCBaIiBmaWxsPSIjNzc0NDIyIi8+PCEtLSBCdWlsZGluZ3MgLS0+PHJlY3QgeD0iMTUwIiB5PSIzNzAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzU1NTU1NSIvPjxyZWN0IHg9IjE2MCIgeT0iMzUwIiB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIGZpbGw9IiM3Nzc3NzciLz48cmVjdCB4PSI2NTAiIHk9IjM4MCIgd2lkdGg9IjYwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjNjY2NjY2Ii8+PHJlY3QgeD0iNjYwIiB5PSIzNjAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMCIgZmlsbD0iIzg4ODg4OCIvPjxyZWN0IHg9IjY5MCIgeT0iMzYwIiB3aWR0aD0iMTAiIGhlaWdodD0iMjAiIGZpbGw9IiM4ODg4ODgiLz48IS0tIENsb3VkcyAtLT48ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMTAwIiByeD0iNjAiIHJ5PSIzMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjcpIi8+PGVsbGlwc2UgY3g9IjE3MCIgY3k9IjExMCIgcng9IjcwIiByeT0iMjUiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC43KSIvPjxlbGxpcHNlIGN4PSI2MDAiIGN5PSIxNTAiIHJ4PSI4MCIgcnk9IjQwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNikiLz48ZWxsaXBzZSBjeD0iNjQwIiBjeT0iMTcwIiByeD0iNzAiIHJ5PSIzMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjYpIi8+PGVsbGlwc2UgY3g9IjQzMCIgY3k9IjcwIiByeD0iNTAiIHJ5PSIyMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjYpIi8+PC9zdmc+';
-    backgroundImage.current = background;
-    
-    const flame = new Image();
-    flame.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJmbGFtZUdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMCUiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSJ5ZWxsb3ciLz48c3RvcCBvZmZzZXQ9IjUwJSIgc3RvcC1jb2xvcj0ib3JhbmdlIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSJyZWQiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cG9seWdvbiBwb2ludHM9IjE1LDAgNSwxNSAxNSwyMCAyNSwxNSIgZmlsbD0idXJsKCNmbGFtZUdyYWQpIi8+PC9zdmc+';
-    flameImage.current = flame;
-  }, []);
-  
-  // Load leaderboard from localStorage
-  useEffect(() => {
-    const savedLeaderboard = localStorage.getItem('rocketLeaderboard');
-    if (savedLeaderboard) {
-      try {
-        setLeaderboard(JSON.parse(savedLeaderboard));
-      } catch (e) {
-        console.error("Error loading leaderboard:", e);
-        setLeaderboard([]);
-      }
-    }
-  }, []);
-  
-  // Start new game
-  const startGame = () => {
-    // Set initial rocket position randomly at top of screen
-    const startX = Math.random() * (CANVAS_WIDTH - ROCKET_WIDTH);
-    const startY = 50;
-    
-    // Set initial velocity (slow downward motion with slight x variation)
-    const initialVelocityX = (Math.random() - 0.5) * 0.5;
-    const initialVelocityY = 0.5 + (level * 0.1); // Increases with level
-    
-    // Set landing pad position randomly near bottom center
-    const padX = (CANVAS_WIDTH / 2) + ((Math.random() - 0.5) * 300);
-    
-    // Set game state
-    setPosition({ x: startX, y: startY });
-    setVelocity({ x: initialVelocityX, y: initialVelocityY });
-    setRotation(0);
-    setFuel(1000);
-    setPadPosition(padX);
-    setGameState('playing');
-    setThrusting(false);
-  };
-  
-  // Handle keyboard input
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (gameState === 'playing') {
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-          e.preventDefault();
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
         }
-        keysPressed.current[e.key] = true;
-        if (e.key === 'ArrowUp') {
-          setThrusting(true);
+        return gk_fileData[filename] || "";
         }
-      }
-    };
-    
-    const handleKeyUp = (e) => {
-      if (gameState === 'playing') {
-        keysPressed.current[e.key] = false;
-        if (e.key === 'ArrowUp') {
-          setThrusting(false);
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neutron Landing - Rocket Lab Mission</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [gameState]);
-  
-  // Game loop
-  useEffect(() => {
-    if (gameState !== 'playing') return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    const gameLoop = () => {
-      // Handle rotation (left/right keys)
-      if (keysPressed.current.ArrowLeft) {
-        setRotation(r => r - ROTATION_SPEED);
-      }
-      if (keysPressed.current.ArrowRight) {
-        setRotation(r => r + ROTATION_SPEED);
-      }
-      
-      // Apply physics
-      let newVelocity = { ...velocity };
-      
-      // Apply gravity
-      newVelocity.y += GRAVITY;
-      
-      // Apply thrust if up key is pressed and there's fuel
-      if (keysPressed.current.ArrowUp && fuel > 0) {
-        const thrustX = Math.sin(rotation) * THRUST_POWER;
-        const thrustY = -Math.cos(rotation) * THRUST_POWER; // Negative because canvas Y is down
         
-        newVelocity.x += thrustX;
-        newVelocity.y += thrustY;
-        
-        // Reduce fuel
-        setFuel(f => Math.max(0, f - FUEL_CONSUMPTION));
-      } else {
-        setThrusting(false);
-      }
-      
-      // Update position
-      let newPosition = {
-        x: position.x + newVelocity.x,
-        y: position.y + newVelocity.y
-      };
-      
-      // Boundary checking
-      if (newPosition.x < 0) {
-        newPosition.x = 0;
-        newVelocity.x = 0;
-      } else if (newPosition.x > CANVAS_WIDTH - ROCKET_WIDTH) {
-        newPosition.x = CANVAS_WIDTH - ROCKET_WIDTH;
-        newVelocity.x = 0;
-      }
-      
-      // Check for landing or crash
-      if (newPosition.y >= CANVAS_HEIGHT - ROCKET_HEIGHT - PAD_HEIGHT) {
-        // Check if rocket is over the landing pad
-        const rocketCenterX = newPosition.x + (ROCKET_WIDTH / 2);
-        const onPad = rocketCenterX > padPosition && rocketCenterX < padPosition + padWidth;
-        
-        if (onPad) {
-          // Check if landing is successful (low velocity and upright)
-          const landingSuccess = Math.abs(newVelocity.y) < 1.2 && Math.abs(newVelocity.x) < 0.8 && Math.abs(rotation) < 0.2;
-          
-          if (landingSuccess) {
-            // Successful landing
-            newPosition.y = CANVAS_HEIGHT - ROCKET_HEIGHT - PAD_HEIGHT;
-            newVelocity = { x: 0, y: 0 };
-            setGameState('landed');
-            
-            // Calculate score (based on remaining fuel)
-            const levelScore = Math.floor(fuel / 10);
-            setScore(s => s + levelScore);
-            
-            // Wait a moment before advancing to next level
-            setTimeout(() => {
-              if (level < 10) {
-                // Next level
-                setLevel(l => l + 1);
-                startGame();
-              } else {
-                // Game complete
-                setGameState('gameover');
-                setShowNameInput(true);
-              }
-            }, 1000);
-          } else {
-            // Crash due to high velocity or wrong orientation
-            setGameState('crashed');
-            setTimeout(() => {
-              setGameState('start');
-              setScore(0);
-              setLevel(1);
-            }, 2000);
-          }
-        } else {
-          // Missed the pad
-          setGameState('crashed');
-          setTimeout(() => {
-            setGameState('start');
-            setScore(0);
-            setLevel(1);
-          }, 2000);
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
         }
-      }
-      
-      // Update state
-      setPosition(newPosition);
-      setVelocity(newVelocity);
-    };
-    
-    gameLoopRef.current = setInterval(gameLoop, 16); // ~60fps
-    
-    return () => {
-      if (gameLoopRef.current) {
-        clearInterval(gameLoopRef.current);
-      }
-    };
-  }, [gameState, position, velocity, rotation, fuel, level, padPosition]);
-  
-  // Render game
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Draw background
-    if (backgroundImage.current) {
-      ctx.drawImage(backgroundImage.current, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    } else {
-      // Fallback background
-      ctx.fillStyle = '#136299';
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      ctx.fillStyle = '#335933';
-      ctx.fillRect(0, CANVAS_HEIGHT - 200, CANVAS_WIDTH, 200);
-    }
-    
-    // Draw landing pad
-    ctx.fillStyle = '#DDDDDD';
-    ctx.fillRect(padPosition, CANVAS_HEIGHT - PAD_HEIGHT, padWidth, PAD_HEIGHT);
-    
-    // Draw pad markers
-    ctx.fillStyle = '#FF0000';
-    ctx.fillRect(padPosition, CANVAS_HEIGHT - PAD_HEIGHT, 5, PAD_HEIGHT);
-    ctx.fillRect(padPosition + padWidth - 5, CANVAS_HEIGHT - PAD_HEIGHT, 5, PAD_HEIGHT);
-    
-    // Draw rocket
-    ctx.save();
-    ctx.translate(position.x + ROCKET_WIDTH / 2, position.y + ROCKET_HEIGHT / 2);
-    ctx.rotate(rotation);
-    
-    // Draw thrust flame if thrusting
-    if (thrusting && fuel > 0 && flameImage.current) {
-      ctx.drawImage(
-        flameImage.current,
-        -ROCKET_WIDTH / 2,
-        ROCKET_HEIGHT / 2,
-        ROCKET_WIDTH,
-        ROCKET_HEIGHT / 2
-      );
-    }
-    
-    // Draw rocket
-    if (rocketImage.current) {
-      ctx.drawImage(
-        rocketImage.current,
-        -ROCKET_WIDTH / 2,
-        -ROCKET_HEIGHT / 2,
-        ROCKET_WIDTH,
-        ROCKET_HEIGHT
-      );
-    } else {
-      // Fallback rocket
-      ctx.fillStyle = '#CCCCCC';
-      ctx.fillRect(-ROCKET_WIDTH / 2, -ROCKET_HEIGHT / 2, ROCKET_WIDTH, ROCKET_HEIGHT);
-    }
-    
-    ctx.restore();
-    
-    // Draw HUD
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Fuel: ${Math.floor(fuel)}`, 10, 20);
-    
-    ctx.textAlign = 'right';
-    ctx.fillText(`Score: ${score}`, CANVAS_WIDTH - 10, 20);
-    ctx.fillText(`Level: ${level}/10`, CANVAS_WIDTH - 10, 40);
-    
-    // Draw velocity indicator
-    ctx.textAlign = 'left';
-    ctx.fillText(`Velocity X: ${velocity.x.toFixed(2)}`, 10, 40);
-    ctx.fillText(`Velocity Y: ${velocity.y.toFixed(2)}`, 10, 60);
-    
-    // Draw game state messages
-    ctx.textAlign = 'center';
-    if (gameState === 'start') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(CANVAS_WIDTH / 2 - 150, CANVAS_HEIGHT / 2 - 80, 300, 160);
-      
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 24px Arial';
-      ctx.fillText('Rocket Landing Game', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
-      ctx.font = '16px Arial';
-      ctx.fillText('Use arrow keys to control the rocket', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-      ctx.fillText('→ ← to rotate, ↑ to thrust', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 25);
-      ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
-    } else if (gameState === 'landed') {
-      ctx.fillStyle = '#00FF00';
-      ctx.font = 'bold 24px Arial';
-      ctx.fillText('LANDED!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    } else if (gameState === 'crashed') {
-      ctx.fillStyle = '#FF0000';
-      ctx.font = 'bold 24px Arial';
-      ctx.fillText('CRASHED!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    } else if (gameState === 'gameover') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(CANVAS_WIDTH / 2 - 150, CANVAS_HEIGHT / 2 - 100, 300, 200);
-      
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 24px Arial';
-      ctx.fillText('GAME COMPLETE!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
-      ctx.font = '18px Arial';
-      ctx.fillText(`Final Score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
-      
-      if (!showNameInput) {
-        ctx.fillText('Press SPACE to play again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
-      }
-    }
-  }, [gameState, position, velocity, rotation, fuel, level, score, padPosition, thrusting, showNameInput]);
-  
-  // Handle space key to start game
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (e.key === ' ' || e.code === 'Space') {
-        if (gameState === 'start') {
-          startGame();
-        } else if (gameState === 'gameover' && !showNameInput) {
-          setGameState('start');
-          setScore(0);
-          setLevel(1);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, [gameState, showNameInput]);
-  
-  // Save score to leaderboard
-  const saveScore = () => {
-    if (playerName.trim() === '') return;
-    
-    const newEntry = {
-      name: playerName,
-      score: score,
-      date: new Date().toLocaleDateString()
-    };
-    
-    const newLeaderboard = [...leaderboard, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
-    
-    setLeaderboard(newLeaderboard);
-    localStorage.setItem('rocketLeaderboard', JSON.stringify(newLeaderboard));
-    
-    setShowNameInput(false);
-    setPlayerName('');
-  };
-  
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
-      <h1 className="text-3xl font-bold mb-4">Neutron Rocket Landing</h1>
-      
-      <div className="relative">
-        <canvas 
-          ref={canvasRef} 
-          width={CANVAS_WIDTH} 
-          height={CANVAS_HEIGHT}
-          className="border-4 border-gray-700 rounded-lg"
-        />
         
-        {showNameInput && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 p-6 rounded-lg border-2 border-blue-500 w-64">
-            <h3 className="text-xl font-bold mb-2">Enter Your Name</h3>
-            <input
-              type="text"
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              className="w-full p-2 mb-4 bg-gray-700 border border-gray-600 rounded text-white"
-              placeholder="Your Name"
-              maxLength={20}
-            />
-            <div className="flex justify-between">
-              <button 
-                onClick={saveScore}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-bold"
-              >
-                Save
-              </button>
-              <button 
-                onClick={() => setShowNameInput(false)}
-                className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded font-bold"
-              >
-                Cancel
-              </button>
+        #gameCanvas {
+            background-color: #000;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #startScreen, #levelScreen, #gameOverScreen, #leaderboardScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        
+        h1 {
+            color: #00c8ff;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 200, 255, 0.7);
+        }
+        
+        h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            margin-bottom: 40px;
+        }
+        
+        button {
+            background-color: #00c8ff;
+            color: #000;
+            border: none;
+            padding: 10px 30px;
+            font-size: 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #00e0ff;
+            transform: scale(1.05);
+        }
+        
+        .stats {
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .instructions {
+            max-width: 500px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .key {
+            display: inline-block;
+            background-color: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 3px;
+        }
+        
+        .leaderboard-table {
+            width: 80%;
+            max-width: 400px;
+            margin: 20px 0;
+            border-collapse: collapse;
+            font-size: 1rem;
+        }
+        
+        .leaderboard-table th, .leaderboard-table td {
+            padding: 10px;
+            border: 1px solid #00c8ff;
+            text-align: center;
+        }
+        
+        .leaderboard-table th {
+            background-color: #0091b1;
+            color: #fff;
+        }
+        
+        .leaderboard-table td {
+            background-color: rgba(0, 200, 255, 0.1);
+        }
+        
+        .name-input {
+            padding: 8px;
+            font-size: 1rem;
+            border: 2px solid #00c8ff;
+            border-radius: 5px;
+            background-color: #333;
+            color: white;
+            margin: 10px 0;
+            width: 200px;
+        }
+        
+        .name-input:focus {
+            outline: none;
+            border-color: #00e0ff;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="startScreen">
+            <h1>NEUTRON LANDING</h1>
+            <h2>Rocket Lab Mission Control</h2>
+            <button id="startButton">START MISSION</button>
+            <button id="viewLeaderboardButton">VIEW LEADERBOARD</button>
+            <div class="instructions">
+                <p>Land the Neutron rocket safely on the landing pad</p>
+                <p>Use <span class="key">←</span> <span class="key">→</span> to rotate the rocket</p>
+                <p>Use <span class="key">↑</span> to apply thrust</p>
+                <p>Conserve fuel for higher scores!</p>
             </div>
-          </div>
-        )}
-      </div>
-      
-      <div className="mt-4 flex justify-between w-full max-w-3xl">
-        <div className="w-1/2 pr-2">
-          <h2 className="text-xl font-bold mb-2">Instructions</h2>
-          <ul className="list-disc pl-5 text-gray-300">
-            <li>Use arrow keys to control the rocket</li>
-            <li>Left/Right keys rotate the rocket</li>
-            <li>Up key applies thrust in the direction the rocket is facing</li>
-            <li>Land gently on the pad to complete the level</li>
-            <li>Conserve fuel for a higher score</li>
-          </ul>
         </div>
         
-        <div className="w-1/2 pl-2">
-          <h2 className="text-xl font-bold mb-2">Leaderboard</h2>
-          {leaderboard.length > 0 ? (
-            <div className="bg-gray-800 p-2 rounded">
-              <table className="min-w-full">
+        <div id="levelScreen" class="hidden">
+            <h1>LEVEL <span id="levelNumber">1</span></h1>
+            <div class="stats">
+                <p>Total Score: <span id="totalScore">0</span></p>
+                <p>Fuel Efficiency Bonus: <span id="fuelBonus">0</span></p>
+            </div>
+            <button id="nextLevelButton">CONTINUE MISSION</button>
+        </div>
+        
+        <div id="gameOverScreen" class="hidden">
+            <h1>MISSION TERMINATED</h1>
+            <h2 id="gameOverMessage">Rocket Lost</h2>
+            <div class="stats">
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <p>Levels Completed: <span id="levelsCompleted">0</span></p>
+            </div>
+            <input type="text" id="playerNameInput" class="name-input" placeholder="Enter your name" maxlength="20">
+            <button id="submitScoreButton">SUBMIT SCORE</button>
+            <button id="restartButton">RESTART MISSION</button>
+            <button id="gameOverLeaderboardButton">VIEW LEADERBOARD</button>
+        </div>
+        
+        <div id="leaderboardScreen" class="hidden">
+            <h1>LEADERBOARD</h1>
+            <table class="leaderboard-table">
                 <thead>
-                  <tr>
-                    <th className="text-left p-1">#</th>
-                    <th className="text-left p-1">Name</th>
-                    <th className="text-right p-1">Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.slice(0, 5).map((entry, index) => (
-                    <tr key={index} className={index === 0 ? "bg-yellow-900 bg-opacity-30" : ""}>
-                      <td className="p-1">{index + 1}</td>
-                      <td className="p-1">{entry.name}</td>
-                      <td className="text-right p-1">{entry.score}</td>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Name</th>
+                        <th>Score</th>
+                        <th>Levels</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-gray-400">No scores yet. Be the first!</p>
-          )}
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+            <button id="backToStartButton">BACK TO START</button>
         </div>
-      </div>
     </div>
-  );
-};
 
-export default RocketLandingGame;
+    <script>
+        // Game elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set actual canvas size
+        canvas.width = 800;
+        canvas.height = 600;
+        
+        // Game screens
+        const startScreen = document.getElementById('startScreen');
+        const levelScreen = document.getElementById('levelScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const leaderboardScreen = document.getElementById('leaderboardScreen');
+        
+        // Buttons
+        const startButton = document.getElementById('startButton');
+        const nextLevelButton = document.getElementById('nextLevelButton');
+        const restartButton = document.getElementById('restartButton');
+        const submitScoreButton = document.getElementById('submitScoreButton');
+        const viewLeaderboardButton = document.getElementById('viewLeaderboardButton');
+        const gameOverLeaderboardButton = document.getElementById('gameOverLeaderboardButton');
+        const backToStartButton = document.getElementById('backToStartButton');
+        
+        // Input
+        const playerNameInput = document.getElementById('playerNameInput');
+        
+        // Display elements
+        const levelNumberEl = document.getElementById('levelNumber');
+        const totalScoreEl = document.getElementById('totalScore');
+        const fuelBonusEl = document.getElementById('fuelBonus');
+        const finalScoreEl = document.getElementById('finalScore');
+        const levelsCompletedEl = document.getElementById('levelsCompleted');
+        const gameOverMessageEl = document.getElementById('gameOverMessage');
+        const leaderboardBody = document.getElementById('leaderboardBody');
+        
+        // Game state
+        let gameActive = false;
+        let level = 1;
+        let totalScore = 0;
+        let fuelRemaining = 100;
+        let initialFuel = 100;
+        let fuelConsumptionRate = 0.5;
+        let lastFrameTime = 0;
+        let deltaTime = 0;
+        let keys = {};
+        
+        // Game physics constants
+        const GRAVITY = 0.05;
+        const THRUST = 0.15;
+        const ROTATION_SPEED = 0.05;
+        const LANDING_SPEED_THRESHOLD = 1.8;
+        const LANDING_ANGLE_THRESHOLD = 0.3;
+        
+        // Game objects
+        let rocket = {
+            x: 0,
+            y: 0,
+            width: 20,
+            height: 40,
+            velocityX: 0,
+            velocityY: 0,
+            rotation: 0, // in radians
+            thrusting: false
+        };
+        
+        let landingPad = {
+            x: 0,
+            y: 0,
+            width: 80,
+            height: 10
+        };
+        
+        // Images
+        const rocketImg = new Image();
+        rocketImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA0MCA4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9InJvY2tldEdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmZmZmZmYiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNkZGRkZGQiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLDApIj48cGF0aCBkPSJNMjAgMEMxNSAwIDEwIDUgMTAgMTVWNjBDMTAgNjUgMCA3MCAwIDcwSDQwQzQwIDcwIDMwIDY1IDMwIDYwVjE1QzMwIDUgMjUgMCAyMCAwWiIgZmlsbD0idXJsKCNyb2NrZXRHcmFkKSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjEiLz48cGF0aCBkPSJNMTUgNjBMMTUgNzBIMjVMMjUgNjBaIiBmaWxsPSIjMzMzIi8+PHBhdGggZD0iTTE1IDE1QzE1IDEwIDIwIDUgMjAgNUMyMCA1IDI1IDEwIDI1IDE1TDI1IDMwSDE1WiIgZmlsbD0iIzAwYzhmZiIgc3Ryb2tlPSIjMDAzIiBzdHJva2Utd2lkdGg9IjAuNSIvPjx0ZXh0IHg9IjIwIiB5PSI0NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiMzMzMiPk5FVVRSQTwvdGV4dD48dGV4dCB4PSIyMCIgeT0iNTEiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMzMzIj5PTjwvdGV4dD48L2c+PC9zdmc+';
+        
+        const flameImg = new Image();
+        flameImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAyMCAzMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cmFkaWFsR3JhZGllbnQgaWQ9ImZsYW1lR3JhZCIgY3g9IjUwJSIgY3k9IjAlIiByPSI3MCUiIGZ4PSI1MCUiIGZ5PSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2ZmZiIvPjxzdG9wIG9mZnNldD0iMjAlIiBzdG9wLWNvbG9yPSIjZmZmZjAwIi8+PHN0b3Agb2Zmc2V0PSI0MCUiIHN0b3AtY29sb3I9IiNmZjgwMDAiLz48c3RvcCBvZmZzZXQ9IjgwJSIgc3RvcC1jb2xvcj0iI2ZmMDAwMCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2ZmMDAwMCIgc3RvcC1vcGFjaXR5PSIwIi8+PC9yYWRpYWxHcmFkaWVudD48L2RlZnM+PHBhdGggZD0iTTEwIDBDMTAgMCAyMCAxNSAxMCAzMEMwIDE1IDEwIDAgMTAgMFoiIGZpbGw9InVybCgjZmxhbWVHcmFkKSIvPjwvc3ZnPg==';
+        
+        const backgroundImg = new Image();
+        backgroundImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9InNreUdyYWRpZW50IiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzAwMTIyZiIvPjxzdG9wIG9mZnNldD0iNjAlIiBzdG9wLWNvbG9yPSIjMDM0MjcwIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMDI2ZGI2Ii8+PC9saW5lYXJHcmFkaWVudD48cmFkaWFsR3JhZGllbnQgaWQ9InN0YXJHZW4iIGN4PSI1MCUiIGN5PSI1MCUiIHI9IjUwJSI+PHN0b3Agb2Zfc2V0PSIwJSIgc3RvcC1jb2xvcj0id2hpdGUiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IndoaXRlIiBzdG9wLW9wYWNpdHk9IjAiLz48L3JhZGlhbEdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0idXJsKCNza3lHcmFkaWVudCkiLz48IS0tIFN0YXJzIC0tPjxnPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjEiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjgiLz48Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMC44IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iMjAwIiBjeT0iNDAiIHI9IjEuMiIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOSIvPjxjaXJjbGUgY3g9IjMwMCIgY3k9IjcwIiByPSIwLjkiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjgiLz48Y2lyY2xlIGN4PSI0MDAiIGN5PSIzMCIgcj0iMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOCIvPjxjaXJjbGUgY3g9IjUwMCIgY3k9IjkwIiByPSIwLjgiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjkiLz48Y2lyY2xlIGN4PSI2MDAiIGN5PSI1MCIgcj0iMS4xIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iNzAwIiBjeT0iNjAiIHI9IjAuOSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOCIvPjxjaXJjbGUgY3g9Ijc1MCIgY3k9IjEwMCIgcj0iMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuNyIvPjxjaXJjbGUgY3g9IjY1MCIgY3k9IjE1MCIgcj0iMC44IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC44Ii8+PGNpcmNsZSBjeD0iNTUwIiBjeT0iMTgwIiByPSIxLjIiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjkiLz48Y2lyY2xlIGN4PSI0NTAiIGN5PSIxMjAiIHI9IjAuOSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuNyIvPjxjaXJjbGUgY3g9IjM1MCIgY3k9IjE2MCIgcj0iMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOCIvPjxjaXJjbGUgY3g9IjI1MCIgY3k9IjEzMCIgcj0iMC44IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC45Ii8+PGNpcmNsZSBjeD0iMTUwIiBjeT0iMTcwIiByPSIxLjEiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjciLz48Y2lyY2xlIGN4PSI4MCIgY3k9IjE0MCIgcj0iMC45IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC44Ii8+PGNpcmNsZSBjeD0iMTgwIiBjeT0iMjIwIiByPSIxIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIwLjgiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjgiLz48Y2lyY2xlIGN4PSIzODAiIGN5PSIyMDAiIHI9IjEuMiIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOSIvPjxjaXJjbGUgY3g9IjQ4MCIgY3k9IjI2MCIgcj0iMC45IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iNTgwIiBjeT0iMjIwIiByPSIxIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC44Ii8+PGNpcmNsZSBjeD0iNjgwIiBjeT0iMjQwIiByPSIwLjgiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjkiLz48Y2lyY2xlIGN4PSI3ODAiIGN5PSIyMDAiIHI9IjEuMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuNyIvPjwvZz48IS0tIEhpbGxzIC0tPjxwYXRoIGQ9Ik0wLDYwMCBRMTAwLDU1MCAyMDAsNTgwIFEzMDAsNjEwIDQwMCw1NzAgUTUwMCw1MzAgNjAwLDU2MCBRODU4LDYwMCA4MDAsNjAwIFoiIGZpbGw9IiMwMDYwMzMiLz48cGF0aCBkPSJNMCw2MDAgUTYwLDU0MCAxMjAsNTUwIFEyMDAsNTYwIDI1MCw1NTAgUTMwMCw1NDAgMzUwLDU1MCBRNDM4LDU2MCA1MjUsNTQwIFE2MTIsNTIwIDcwMCw1NTAgUTgwMCw1ODAgODAwLDYwMCBaIiBmaWxsPSIjMDA0MDIyIi8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTAwLDU3MCkiPjxyZWN0IHg9Ii0yMCIgeT0iLTI1IiB3aWR0aD0iNDAiIGhlaWdodD0iMjUiIGZpbGw9IiNhYWEiLz48cmVjdCB4PSItMTUiIHk9Ii0zNSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjODg4Ii8+PHJlY3QgeD0iLTUiIHk9Ii02MCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjI1IiBmaWxsPSIjNzc3Ii8+PC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDMwMCw1NDApIj48cmVjdCB4PSItMTAiIHk9Ii0xMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjYmJiIi8+PC9nPjxyZWN0IHg9IjAiIHk9IjU5OSIgd2lkdGg9IjgwMCIgaGVpZ2h0PSIxIiBmaWxsPSIjMDAzMDE4Ii8+PC9zdmc+';
+        
+        // Input handling
+        document.addEventListener('keydown', function(e) {
+            keys[e.key] = true;
+        });
+        
+        document.addEventListener('keyup', function(e) {
+            keys[e.key] = false;
+        });
+        
+        // Leaderboard functions
+        function loadLeaderboard() {
+            const leaderboard = JSON.parse(localStorage.getItem('neutronLandingLeaderboard') || '[]');
+            return leaderboard;
+        }
+        
+        function saveLeaderboard(leaderboard) {
+            localStorage.setItem('neutronLandingLeaderboard', JSON.stringify(leaderboard));
+        }
+        
+        function addScoreToLeaderboard(name, score, levels) {
+            const leaderboard = loadLeaderboard();
+            leaderboard.push({ name: name.trim() || 'Anonymous', score, levels });
+            // Sort by score (descending) and limit to top 10
+            leaderboard.sort((a, b) => b.score - a.score);
+            if (leaderboard.length > 10) leaderboard.length = 10;
+            saveLeaderboard(leaderboard);
+        }
+        
+        function displayLeaderboard() {
+            const leaderboard = loadLeaderboard();
+            leaderboardBody.innerHTML = '';
+            leaderboard.forEach((entry, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${entry.name}</td>
+                    <td>${entry.score}</td>
+                    <td>${entry.levels}</td>
+                `;
+                leaderboardBody.appendChild(row);
+            });
+            leaderboardScreen.classList.remove('hidden');
+        }
+        
+        // Game functions
+        function initLevel() {
+            const maxOffset = Math.min(300, 100 + level * 20);
+            const startX = canvas.width / 2 + (Math.random() * maxOffset * 2 - maxOffset);
+            rocket.x = startX;
+            rocket.y = 50;
+            
+            rocket.velocityX = Math.random() * 0.3 - 0.15;
+            rocket.velocityY = 0.05 + Math.min(0.3, level * 0.03);
+            rocket.rotation = 0;
+            rocket.thrusting = false;
+            
+            const padOffset = Math.random() * 200 - 100;
+            landingPad.x = canvas.width / 2 - landingPad.width / 2 + padOffset;
+            landingPad.y = canvas.height - 20;
+            
+            initialFuel = 100 + Math.min(100, level * 10);
+            fuelRemaining = initialFuel;
+            
+            fuelConsumptionRate = 0.5 + Math.min(0.5, level * 0.05);
+            
+            gameActive = true;
+        }
+        
+        function update() {
+            if (!gameActive) return;
+            
+            const currentTime = Date.now();
+            deltaTime = (currentTime - lastFrameTime) / 16.67;
+            lastFrameTime = currentTime;
+            
+            if (deltaTime > 5) deltaTime = 5;
+            
+            if (keys['ArrowLeft']) {
+                rocket.rotation -= ROTATION_SPEED * deltaTime;
+            }
+            if (keys['ArrowRight']) {
+                rocket.rotation += ROTATION_SPEED * deltaTime;
+            }
+            
+            rocket.thrusting = keys['ArrowUp'] && fuelRemaining > 0;
+            
+            if (rocket.thrusting) {
+                const thrustX = Math.sin(rocket.rotation) * THRUST * deltaTime;
+                const thrustY = -Math.cos(rocket.rotation) * THRUST * deltaTime;
+                
+                rocket.velocityX += thrustX;
+                rocket.velocityY += thrustY;
+                
+                fuelRemaining -= fuelConsumptionRate * deltaTime;
+                if (fuelRemaining < 0) fuelRemaining = 0;
+            }
+            
+            rocket.velocityY += GRAVITY * deltaTime;
+            
+            rocket.x += rocket.velocityX * deltaTime;
+            rocket.y += rocket.velocityY * deltaTime;
+            
+            if (rocket.x < -rocket.width) rocket.x = canvas.width;
+            if (rocket.x > canvas.width) rocket.x = -rocket.width;
+            
+            checkLanding();
+        }
+        
+        function checkLanding() {
+            const rocketBottom = rocket.y + rocket.height / 2;
+            
+            if (rocketBottom >= landingPad.y && rocketBottom <= landingPad.y + 5) {
+                const rocketCenterX = rocket.x;
+                if (rocketCenterX >= landingPad.x && rocketCenterX <= landingPad.x + landingPad.width) {
+                    if (rocket.velocityY < LANDING_SPEED_THRESHOLD && 
+                        Math.abs(rocket.rotation) < LANDING_ANGLE_THRESHOLD) {
+                        
+                        rocket.velocityX = 0;
+                        rocket.velocityY = 0;
+                        rocket.rotation = 0;
+                        rocket.y = landingPad.y - rocket.height / 2;
+                        
+                        setTimeout(() => {
+                            levelComplete();
+                        }, 800);
+                        
+                        gameActive = false;
+                    } else {
+                        gameOver("Crash Landing! Too " + 
+                                (rocket.velocityY >= LANDING_SPEED_THRESHOLD ? "fast" : "tilted"));
+                    }
+                }
+            } else if (rocketBottom >= canvas.height) {
+                gameOver("Crash Landing! Missed the pad.");
+            }
+        }
+        
+        function levelComplete() {
+            gameActive = false;
+            
+            const fuelEfficiency = fuelRemaining / initialFuel;
+            const fuelBonus = Math.floor(fuelEfficiency * 1000);
+            const levelScore = 500 + fuelBonus;
+            
+            totalScore += levelScore;
+            
+            levelNumberEl.textContent = level + 1;
+            totalScoreEl.textContent = totalScore;
+            fuelBonusEl.textContent = fuelBonus;
+            
+            levelScreen.classList.remove('hidden');
+        }
+        
+        function gameOver(message) {
+            gameActive = false;
+            
+            gameOverMessageEl.textContent = message;
+            finalScoreEl.textContent = totalScore;
+            levelsCompletedEl.textContent = level - 1;
+            
+            playerNameInput.value = '';
+            gameOverScreen.classList.remove('hidden');
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#00c8ff';
+            ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, landingPad.height);
+            
+            ctx.fillStyle = '#001833';
+            for (let i = 0; i < landingPad.width; i += 10) {
+                ctx.fillRect(landingPad.x + i, landingPad.y + 2, 5, 3);
+            }
+            
+            ctx.save();
+            
+            ctx.translate(rocket.x, rocket.y);
+            ctx.rotate(rocket.rotation);
+            
+            if (rocket.thrusting && fuelRemaining > 0) {
+                ctx.drawImage(
+                    flameImg, 
+                    -flameImg.width / 4, 
+                    rocket.height / 2, 
+                    flameImg.width / 2, 
+                    flameImg.height / 2
+                );
+            }
+            
+            ctx.drawImage(
+                rocketImg, 
+                -rocket.width / 2, 
+                -rocket.height / 2, 
+                rocket.width, 
+                rocket.height
+            );
+            
+            ctx.restore();
+            
+            drawHUD();
+        }
+        
+        function drawHUD() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, 40);
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(`SCORE: ${totalScore}`, canvas.width - 20, 25);
+            
+            ctx.textAlign = 'right';
+            ctx.fillText(`LEVEL: ${level}`, canvas.width - 200, 25);
+            
+            ctx.textAlign = 'left';
+            ctx.fillText('FUEL:', 20, 25);
+            
+            ctx.fillStyle = '#333';
+            ctx.fillRect(80, 15, 100, 15);
+            
+            const fuelWidth = (fuelRemaining / initialFuel) * 100;
+            
+            if (fuelRemaining > initialFuel * 0.6) {
+                ctx.fillStyle = '#00ff00';
+            } else if (fuelRemaining > initialFuel * 0.3) {
+                ctx.fillStyle = '#ffff00';
+            } else {
+                ctx.fillStyle = '#ff0000';
+            }
+            
+            ctx.fillRect(80, 15, fuelWidth, 15);
+            
+            const velocityTotal = Math.sqrt(
+                rocket.velocityX * rocket.velocityX + 
+                rocket.velocityY * rocket.velocityY
+            );
+            
+            ctx.textAlign = 'left';
+            ctx.fillStyle = velocityTotal < LANDING_SPEED_THRESHOLD ? '#00ff00' : '#ff0000';
+            ctx.fillText(`SPEED: ${velocityTotal.toFixed(2)}`, 200, 25);
+            
+            const angleDeg = (rocket.rotation * 180 / Math.PI) % 360;
+            ctx.fillStyle = Math.abs(rocket.rotation) < LANDING_ANGLE_THRESHOLD ? '#00ff00' : '#ff0000';
+            ctx.fillText(`ANGLE: ${angleDeg.toFixed(1)}°`, 320, 25);
+        }
+        
+        function gameLoop(timestamp) {
+            if (lastFrameTime === 0) {
+                lastFrameTime = timestamp;
+            }
+            
+            update();
+            draw();
+            
+            if (gameActive) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // Initialize button click events
+        startButton.addEventListener('click', function() {
+            startScreen.classList.add('hidden');
+            level = 1;
+            totalScore = 0;
+            initLevel();
+            lastFrameTime = 0;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        nextLevelButton.addEventListener('click', function() {
+            levelScreen.classList.add('hidden');
+            level++;
+            initLevel();
+            lastFrameTime = 0;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        restartButton.addEventListener('click', function() {
+            gameOverScreen.classList.add('hidden');
+            level = 1;
+            totalScore = 0;
+            initLevel();
+            lastFrameTime = 0;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        submitScoreButton.addEventListener('click', function() {
+            const name = playerNameInput.value;
+            addScoreToLeaderboard(name, totalScore, level - 1);
+            playerNameInput.value = '';
+            displayLeaderboard();
+            gameOverScreen.classList.add('hidden');
+        });
+        
+        viewLeaderboardButton.addEventListener('click', function() {
+            startScreen.classList.add('hidden');
+            displayLeaderboard();
+        });
+        
+        gameOverLeaderboardButton.addEventListener('click', function() {
+            gameOverScreen.classList.add('hidden');
+            displayLeaderboard();
+        });
+        
+        backToStartButton.addEventListener('click', function() {
+            leaderboardScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        });
+        
+        // Load all images before starting the game
+        let imagesLoaded = 0;
+        const imagesToLoad = 3; // background, rocket, flame
+        
+        function checkAllImagesLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === imagesToLoad) {
+                startScreen.classList.remove('hidden');
+            }
+        }
+        
+        rocketImg.onload = checkAllImagesLoaded;
+        flameImg.onload = checkAllImagesLoaded;
+        backgroundImg.onload = checkAllImagesLoaded;
+    </script>
+</body>
+</html>
