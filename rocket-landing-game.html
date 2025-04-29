@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neutron Landing - Rocket Lab Mission</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
+        }
+        
+        #gameCanvas {
+            background-color: #000;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #startScreen, #levelScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        
+        h1 {
+            color: #00c8ff;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 200, 255, 0.7);
+        }
+        
+        h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            margin-bottom: 40px;
+        }
+        
+        button {
+            background-color: #00c8ff;
+            color: #000;
+            border: none;
+            padding: 10px 30px;
+            font-size: 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #00e0ff;
+            transform: scale(1.05);
+        }
+        
+        .stats {
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .instructions {
+            max-width: 500px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .key {
+            display: inline-block;
+            background-color: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="startScreen">
+            <h1>NEUTRON LANDING</h1>
+            <h2>Rocket Lab Mission Control</h2>
+            <button id="startButton">START MISSION</button>
+            <div class="instructions">
+                <p>Land the Neutron rocket safely on the landing pad</p>
+                <p>Use <span class="key">←</span> <span class="key">→</span> to rotate the rocket</p>
+                <p>Use <span class="key">↑</span> to apply thrust</p>
+                <p>Conserve fuel for higher scores!</p>
+            </div>
+        </div>
+        
+        <div id="levelScreen" class="hidden">
+            <h1>LEVEL <span id="levelNumber">1</span></h1>
+            <div class="stats">
+                <p>Total Score: <span id="totalScore">0</span></p>
+                <p>Fuel Efficiency Bonus: <span id="fuelBonus">0</span></p>
+            </div>
+            <button id="nextLevelButton">CONTINUE MISSION</button>
+        </div>
+        
+        <div id="gameOverScreen" class="hidden">
+            <h1>MISSION TERMINATED</h1>
+            <h2 id="gameOverMessage">Rocket Lost</h2>
+            <div class="stats">
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <p>Levels Completed: <span id="levelsCompleted">0</span></p>
+            </div>
+            <button id="restartButton">RESTART MISSION</button>
+        </div>
+    </div>
+
+    <script>
+        // Game elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set actual canvas size
+        canvas.width = 800;
+        canvas.height = 600;
+        
+        // Game screens
+        const startScreen = document.getElementById('startScreen');
+        const levelScreen = document.getElementById('levelScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        
+        // Buttons
+        const startButton = document.getElementById('startButton');
+        const nextLevelButton = document.getElementById('nextLevelButton');
+        const restartButton = document.getElementById('restartButton');
+        
+        // Display elements
+        const levelNumberEl = document.getElementById('levelNumber');
+        const totalScoreEl = document.getElementById('totalScore');
+        const fuelBonusEl = document.getElementById('fuelBonus');
+        const finalScoreEl = document.getElementById('finalScore');
+        const levelsCompletedEl = document.getElementById('levelsCompleted');
+        const gameOverMessageEl = document.getElementById('gameOverMessage');
+        
+        // Game state
+        let gameActive = false;
+        let level = 1;
+        let totalScore = 0;
+        let fuelRemaining = 100;
+        let initialFuel = 100;
+        let fuelConsumptionRate = 0.5;
+        let lastFrameTime = 0;
+        let deltaTime = 0;
+        let keys = {};
+        
+        // Game physics constants
+        const GRAVITY = 0.05;
+        const THRUST = 0.15;
+        const ROTATION_SPEED = 0.05;
+        const LANDING_SPEED_THRESHOLD = 1.8;
+        const LANDING_ANGLE_THRESHOLD = 0.3;
+        
+        // Game objects
+        let rocket = {
+            x: 0,
+            y: 0,
+            width: 20,
+            height: 40,
+            velocityX: 0,
+            velocityY: 0,
+            rotation: 0, // in radians
+            thrusting: false
+        };
+        
+        let landingPad = {
+            x: 0,
+            y: 0,
+            width: 80,
+            height: 10
+        };
+        
+        // Images
+        const rocketImg = new Image();
+        rocketImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA0MCA4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9InJvY2tldEdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmZmZmZmYiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNkZGRkZGQiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLDApIj48cGF0aCBkPSJNMjAgMEMxNSAwIDEwIDUgMTAgMTVWNjBDMTAgNjUgMCA3MCAwIDcwSDQwQzQwIDcwIDMwIDY1IDMwIDYwVjE1QzMwIDUgMjUgMCAyMCAwWiIgZmlsbD0idXJsKCNyb2NrZXRHcmFkKSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjEiLz48cGF0aCBkPSJNMTUgNjBMMTUgNzBIMjVMMjUgNjBaIiBmaWxsPSIjMzMzIi8+PHBhdGggZD0iTTE1IDE1QzE1IDEwIDIwIDUgMjAgNUMyMCA1IDI1IDEwIDI1IDE1TDI1IDMwSDE1WiIgZmlsbD0iIzAwYzhmZiIgc3Ryb2tlPSIjMDAzIiBzdHJva2Utd2lkdGg9IjAuNSIvPjx0ZXh0IHg9IjIwIiB5PSI0NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiMzMzMiPk5FVVRSQTwvdGV4dD48dGV4dCB4PSIyMCIgeT0iNTEiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMzMzIj5PTjwvdGV4dD48L2c+PC9zdmc+';
+        
+        const flameImg = new Image();
+        flameImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAyMCAzMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cmFkaWFsR3JhZGllbnQgaWQ9ImZsYW1lR3JhZCIgY3g9IjUwJSIgY3k9IjAlIiByPSI3MCUiIGZ4PSI1MCUiIGZ5PSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2ZmZiIvPjxzdG9wIG9mZnNldD0iMjAlIiBzdG9wLWNvbG9yPSIjZmZmZjAwIi8+PHN0b3Agb2Zmc2V0PSI0MCUiIHN0b3AtY29sb3I9IiNmZjgwMDAiLz48c3RvcCBvZmZzZXQ9IjgwJSIgc3RvcC1jb2xvcj0iI2ZmMDAwMCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2ZmMDAwMCIgc3RvcC1vcGFjaXR5PSIwIi8+PC9yYWRpYWxHcmFkaWVudD48L2RlZnM+PHBhdGggZD0iTTEwIDBDMTAgMCAyMCAxNSAxMCAzMEMwIDE1IDEwIDAgMTAgMFoiIGZpbGw9InVybCgjZmxhbWVHcmFkKSIvPjwvc3ZnPg==';
+        
+        const backgroundImg = new Image();
+        backgroundImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9InNreUdyYWRpZW50IiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzAwMTIyZiIvPjxzdG9wIG9mZnNldD0iNjAlIiBzdG9wLWNvbG9yPSIjMDM0MjcwIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMDI2ZGI2Ii8+PC9saW5lYXJHcmFkaWVudD48cmFkaWFsR3JhZGllbnQgaWQ9InN0YXJHZW4iIGN4PSI1MCUiIGN5PSI1MCUiIHI9IjUwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0id2hpdGUiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IndoaXRlIiBzdG9wLW9wYWNpdHk9IjAiLz48L3JhZGlhbEdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0idXJsKCNza3lHcmFkaWVudCkiLz48IS0tIFN0YXJzIC0tPjxnPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjEiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjgiLz48Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMC44IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iMjAwIiBjeT0iNDAiIHI9IjEuMiIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOSIvPjxjaXJjbGUgY3g9IjMwMCIgY3k9IjcwIiByPSIwLjkiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjgiLz48Y2lyY2xlIGN4PSI0MDAiIGN5PSIzMCIgcj0iMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOCIvPjxjaXJjbGUgY3g9IjUwMCIgY3k9IjkwIiByPSIwLjgiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjkiLz48Y2lyY2xlIGN4PSI2MDAiIGN5PSI1MCIgcj0iMS4xIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iNzAwIiBjeT0iNjAiIHI9IjAuOSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOCIvPjxjaXJjbGUgY3g9Ijc1MCIgY3k9IjEwMCIgcj0iMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuNyIvPjxjaXJjbGUgY3g9IjY1MCIgY3k9IjE1MCIgcj0iMC44IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC44Ii8+PGNpcmNsZSBjeD0iNTUwIiBjeT0iMTgwIiByPSIxLjIiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjkiLz48Y2lyY2xlIGN4PSI0NTAiIGN5PSIxMjAiIHI9IjAuOSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuNyIvPjxjaXJjbGUgY3g9IjM1MCIgY3k9IjE2MCIgcj0iMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOCIvPjxjaXJjbGUgY3g9IjI1MCIgY3k9IjEzMCIgcj0iMC44IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC45Ii8+PGNpcmNsZSBjeD0iMTUwIiBjeT0iMTcwIiByPSIxLjEiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjciLz48Y2lyY2xlIGN4PSI4MCIgY3k9IjE0MCIgcj0iMC45IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC44Ii8+PGNpcmNsZSBjeD0iMTgwIiBjeT0iMjIwIiByPSIxIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIwLjgiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjgiLz48Y2lyY2xlIGN4PSIzODAiIGN5PSIyMDAiIHI9IjEuMiIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuOSIvPjxjaXJjbGUgY3g9IjQ4MCIgY3k9IjI2MCIgcj0iMC45IiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC43Ii8+PGNpcmNsZSBjeD0iNTgwIiBjeT0iMjIwIiByPSIxIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC44Ii8+PGNpcmNsZSBjeD0iNjgwIiBjeT0iMjQwIiByPSIwLjgiIGZpbGw9IndoaXRlIiBvcGFjaXR5PSIwLjkiLz48Y2lyY2xlIGN4PSI3ODAiIGN5PSIyMDAiIHI9IjEuMSIgZmlsbD0id2hpdGUiIG9wYWNpdHk9IjAuNyIvPjwvZz48IS0tIEhpbGxzIC0tPjxwYXRoIGQ9Ik0wLDYwMCBRMTAwLDU1MCAyMDAsNTgwIFEzMDAsNjEwIDQwMCw1NzAgUTUwMCw1MzAgNjAwLDU2MCBRODU4LDYwMCA4MDAsNjAwIFoiIGZpbGw9IiMwMDYwMzMiLz48cGF0aCBkPSJNMCw2MDAgUTYwLDU0MCAxMjAsNTUwIFEyMDAsNTYwIDI1MCw1NTAgUTMwMCw1NDAgMzUwLDU1MCBRNDM4LDU2MCA1MjUsNTQwIFE2MTIsNTIwIDcwMCw1NTAgUTgwMCw1ODAgODAwLDYwMCBaIiBmaWxsPSIjMDA0MDIyIi8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTAwLDU3MCkiPjxyZWN0IHg9Ii0yMCIgeT0iLTI1IiB3aWR0aD0iNDAiIGhlaWdodD0iMjUiIGZpbGw9IiNhYWEiLz48cmVjdCB4PSItMTUiIHk9Ii0zNSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjODg4Ii8+PHJlY3QgeD0iLTUiIHk9Ii02MCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjI1IiBmaWxsPSIjNzc3Ii8+PC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDMwMCw1NDApIj48cmVjdCB4PSItMTAiIHk9Ii0xMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjYmJiIi8+PC9nPjxyZWN0IHg9IjAiIHk9IjU5OSIgd2lkdGg9IjgwMCIgaGVpZ2h0PSIxIiBmaWxsPSIjMDAzMDE4Ii8+PC9zdmc+';
+        
+        // Input handling
+        document.addEventListener('keydown', function(e) {
+            keys[e.key] = true;
+        });
+        
+        document.addEventListener('keyup', function(e) {
+            keys[e.key] = false;
+        });
+        
+        // Game functions
+        function initLevel() {
+            // Set initial rocket position based on level
+            // As levels increase, make starting position more random
+            const maxOffset = Math.min(300, 100 + level * 20);
+            const startX = canvas.width / 2 + (Math.random() * maxOffset * 2 - maxOffset);
+            rocket.x = startX;
+            rocket.y = 50;
+            
+            // Reset rocket state
+            rocket.velocityX = Math.random() * 0.3 - 0.15; // Reduced initial horizontal velocity
+            rocket.velocityY = 0.05 + Math.min(0.3, level * 0.03); // Reduced initial vertical velocity
+            rocket.rotation = 0;
+            rocket.thrusting = false;
+            
+            // Set landing pad position
+            const padOffset = Math.random() * 200 - 100;
+            landingPad.x = canvas.width / 2 - landingPad.width / 2 + padOffset;
+            landingPad.y = canvas.height - 20;
+            
+            // Set fuel based on level
+            initialFuel = 100 + Math.min(100, level * 10);
+            fuelRemaining = initialFuel;
+            
+            // Increase fuel consumption with level difficulty
+            fuelConsumptionRate = 0.5 + Math.min(0.5, level * 0.05);
+            
+            gameActive = true;
+        }
+        
+        function update() {
+            if (!gameActive) return;
+            
+            // Calculate delta time for smooth animation
+            const currentTime = Date.now();
+            deltaTime = (currentTime - lastFrameTime) / 16.67; // Normalized to ~60fps
+            lastFrameTime = currentTime;
+            
+            // Cap deltaTime to prevent huge jumps
+            if (deltaTime > 5) deltaTime = 5;
+            
+            // Handle rotation
+            if (keys['ArrowLeft']) {
+                rocket.rotation -= ROTATION_SPEED * deltaTime;
+            }
+            if (keys['ArrowRight']) {
+                rocket.rotation += ROTATION_SPEED * deltaTime;
+            }
+            
+            // Handle thrust
+            rocket.thrusting = keys['ArrowUp'] && fuelRemaining > 0;
+            
+            if (rocket.thrusting) {
+                // Apply thrust in direction of rocket's rotation
+                const thrustX = Math.sin(rocket.rotation) * THRUST * deltaTime;
+                const thrustY = -Math.cos(rocket.rotation) * THRUST * deltaTime;
+                
+                rocket.velocityX += thrustX;
+                rocket.velocityY += thrustY;
+                
+                // Consume fuel
+                fuelRemaining -= fuelConsumptionRate * deltaTime;
+                if (fuelRemaining < 0) fuelRemaining = 0;
+            }
+            
+            // Apply gravity
+            rocket.velocityY += GRAVITY * deltaTime;
+            
+            // Update position
+            rocket.x += rocket.velocityX * deltaTime;
+            rocket.y += rocket.velocityY * deltaTime;
+            
+            // Boundary handling - wrap around for left/right
+            if (rocket.x < -rocket.width) rocket.x = canvas.width;
+            if (rocket.x > canvas.width) rocket.x = -rocket.width;
+            
+            // Check for landing or crash
+            checkLanding();
+        }
+        
+        function checkLanding() {
+            // Check if rocket's bottom is at landing pad level
+            const rocketBottom = rocket.y + rocket.height / 2;
+            
+            if (rocketBottom >= landingPad.y && rocketBottom <= landingPad.y + 5) {
+                // Check if rocket is above landing pad
+                const rocketCenterX = rocket.x;
+                if (rocketCenterX >= landingPad.x && rocketCenterX <= landingPad.x + landingPad.width) {
+                    // Check landing speed and angle
+                    if (rocket.velocityY < LANDING_SPEED_THRESHOLD && 
+                        Math.abs(rocket.rotation) < LANDING_ANGLE_THRESHOLD) {
+                        
+                        // Stop rocket movement - it's landed
+                        rocket.velocityX = 0;
+                        rocket.velocityY = 0;
+                        rocket.rotation = 0;
+                        rocket.y = landingPad.y - rocket.height / 2;
+                        
+                        // Add a small delay before completing the level to show the rocket landed
+                        setTimeout(() => {
+                            // Successful landing!
+                            levelComplete();
+                        }, 800);
+                        
+                        // Disable game updates but keep rendering
+                        gameActive = false;
+                    } else {
+                        // Crashed - too fast or wrong angle
+                        gameOver("Crash Landing! Too " + 
+                                (rocket.velocityY >= LANDING_SPEED_THRESHOLD ? "fast" : "tilted"));
+                    }
+                }
+            } else if (rocketBottom >= canvas.height) {
+                // Crashed into the ground
+                gameOver("Crash Landing! Missed the pad.");
+            }
+        }
+        
+        function levelComplete() {
+            gameActive = false;
+            
+            // Calculate score based on fuel efficiency
+            const fuelEfficiency = fuelRemaining / initialFuel;
+            const fuelBonus = Math.floor(fuelEfficiency * 1000);
+            const levelScore = 500 + fuelBonus;
+            
+            totalScore += levelScore;
+            
+            // Update level information
+            levelNumberEl.textContent = level + 1;
+            totalScoreEl.textContent = totalScore;
+            fuelBonusEl.textContent = fuelBonus;
+            
+            // Show level screen
+            levelScreen.classList.remove('hidden');
+        }
+        
+        function gameOver(message) {
+            gameActive = false;
+            
+            // Update game over screen
+            gameOverMessageEl.textContent = message;
+            finalScoreEl.textContent = totalScore;
+            levelsCompletedEl.textContent = level - 1;
+            
+            // Show game over screen
+            gameOverScreen.classList.remove('hidden');
+        }
+        
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background
+            ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            
+            // Draw landing pad
+            ctx.fillStyle = '#00c8ff';
+            ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, landingPad.height);
+            
+            // Add landing pad markers
+            ctx.fillStyle = '#001833';
+            for (let i = 0; i < landingPad.width; i += 10) {
+                ctx.fillRect(landingPad.x + i, landingPad.y + 2, 5, 3);
+            }
+            
+            // Draw rocket
+            ctx.save();
+            
+            // Translate to rocket center for rotation
+            ctx.translate(rocket.x, rocket.y);
+            ctx.rotate(rocket.rotation);
+            
+            // Draw thrust flame if thrusting
+            if (rocket.thrusting && fuelRemaining > 0) {
+                ctx.drawImage(
+                    flameImg, 
+                    -flameImg.width / 4, 
+                    rocket.height / 2, 
+                    flameImg.width / 2, 
+                    flameImg.height / 2
+                );
+            }
+            
+            // Draw rocket
+            ctx.drawImage(
+                rocketImg, 
+                -rocket.width / 2, 
+                -rocket.height / 2, 
+                rocket.width, 
+                rocket.height
+            );
+            
+            ctx.restore();
+            
+            // Draw HUD
+            drawHUD();
+        }
+        
+        function drawHUD() {
+            // Background for HUD
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, 40);
+            
+            // Draw score
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(`SCORE: ${totalScore}`, canvas.width - 20, 25);
+            
+            // Draw level (moved to avoid overlay)
+            ctx.textAlign = 'right';
+            ctx.fillText(`LEVEL: ${level}`, canvas.width - 200, 25);
+            
+            // Draw fuel gauge
+            ctx.textAlign = 'left';
+            ctx.fillText('FUEL:', 20, 25);
+            
+            // Fuel bar background
+            ctx.fillStyle = '#333';
+            ctx.fillRect(80, 15, 100, 15);
+            
+            // Fuel level
+            const fuelWidth = (fuelRemaining / initialFuel) * 100;
+            
+            // Fuel color based on remaining amount
+            if (fuelRemaining > initialFuel * 0.6) {
+                ctx.fillStyle = '#00ff00';
+            } else if (fuelRemaining > initialFuel * 0.3) {
+                ctx.fillStyle = '#ffff00';
+            } else {
+                ctx.fillStyle = '#ff0000';
+            }
+            
+            ctx.fillRect(80, 15, fuelWidth, 15);
+            
+            // Velocity indicators
+            const velocityTotal = Math.sqrt(
+                rocket.velocityX * rocket.velocityX + 
+                rocket.velocityY * rocket.velocityY
+            );
+            
+            ctx.textAlign = 'left';
+            ctx.fillStyle = velocityTotal < LANDING_SPEED_THRESHOLD ? '#00ff00' : '#ff0000';
+            ctx.fillText(`SPEED: ${velocityTotal.toFixed(2)}`, 200, 25);
+            
+            // Angle indicator
+            const angleDeg = (rocket.rotation * 180 / Math.PI) % 360;
+            ctx.fillStyle = Math.abs(rocket.rotation) < LANDING_ANGLE_THRESHOLD ? '#00ff00' : '#ff0000';
+            ctx.fillText(`ANGLE: ${angleDeg.toFixed(1)}°`, 320, 25);
+        }
+        
+        function gameLoop(timestamp) {
+            if (lastFrameTime === 0) {
+                lastFrameTime = timestamp;
+            }
+            
+            update();
+            draw();
+            
+            if (gameActive) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // Initialize button click events
+        startButton.addEventListener('click', function() {
+            startScreen.classList.add('hidden');
+            level = 1;
+            totalScore = 0;
+            initLevel();
+            lastFrameTime = 0;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        nextLevelButton.addEventListener('click', function() {
+            levelScreen.classList.add('hidden');
+            level++;
+            initLevel();
+            lastFrameTime = 0;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        restartButton.addEventListener('click', function() {
+            gameOverScreen.classList.add('hidden');
+            level = 1;
+            totalScore = 0;
+            initLevel();
+            lastFrameTime = 0;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        // Load all images before starting the game
+        let imagesLoaded = 0;
+        const imagesToLoad = 3; // background, rocket, flame
+        
+        function checkAllImagesLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === imagesToLoad) {
+                // Show start screen when all images are loaded
+                startScreen.classList.remove('hidden');
+            }
+        }
+        
+        rocketImg.onload = checkAllImagesLoaded;
+        flameImg.onload = checkAllImagesLoaded;
+        backgroundImg.onload = checkAllImagesLoaded;
+    </script>
+</body>
+</html>
