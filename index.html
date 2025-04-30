@@ -349,30 +349,27 @@
         //     return leaderboard;
         // }
         
-        // function saveLeaderboard(leaderboard) {
-        //     localStorage.setItem('neutronLandingLeaderboard', JSON.stringify(leaderboard));
-        // }
-        
-        // function addScoreToLeaderboard(name, score, levels) {
-        //     const leaderboard = loadLeaderboard();
-        //     leaderboard.push({ name: name.trim() || 'Anonymous', score, levels });
-        //     // Sort by score (descending) and limit to top 10
-        //     leaderboard.sort((a, b) => b.score - a.score);
-        //     if (leaderboard.length > 10) leaderboard.length = 10;
-        //     saveLeaderboard(leaderboard);
-        // }
+
         async function addScoreToLeaderboard(name, score, levels) {
-            const { error } = await supabaseClient
+            console.log('Submitting score to Supabase:', { name: name.trim() || 'Anonymous', score, levels });
+            
+            const { data, error } = await supabaseClient
                 .from('scores')
-                .insert([{ name: name.trim() || 'Anonymous', score, levels }]);
+                .insert([{ 
+                    name: name.trim() || 'Anonymous', 
+                    score: score, 
+                    levels: levels 
+                }])
+                .select(); // Add .select() to return the inserted data
 
             if (error) {
                 console.error('Error submitting score:', error);
+                throw error;
             } else {
-                displayLeaderboard();
+                console.log('Score submitted successfully:', data);
+                return data;
             }
         }
-
         
         // function displayLeaderboard() {
         //     const leaderboard = loadLeaderboard();
@@ -389,7 +386,10 @@
         //     });
         //     leaderboardScreen.classList.remove('hidden');
         // }
+
         async function displayLeaderboard() {
+            console.log('Fetching leaderboard data...');
+            
             const { data, error } = await supabaseClient
                 .from('scores')
                 .select('*')
@@ -400,6 +400,14 @@
 
             if (error) {
                 console.error('Error fetching leaderboard:', error);
+                leaderboardBody.innerHTML = '<tr><td colspan="4">Error loading leaderboard</td></tr>';
+                return;
+            }
+
+            console.log('Leaderboard data received:', data);
+            
+            if (!data || data.length === 0) {
+                leaderboardBody.innerHTML = '<tr><td colspan="4">No scores yet! Be the first to submit.</td></tr>';
                 return;
             }
 
@@ -663,22 +671,42 @@
             requestAnimationFrame(gameLoop);
         });
         
-        submitScoreButton.addEventListener('click', function() {
+        // submitScoreButton.addEventListener('click', function() {
+        //     const name = playerNameInput.value;
+        //     addScoreToLeaderboard(name, totalScore, level - 1);
+        //     playerNameInput.value = '';
+        //     displayLeaderboard();
+        //     gameOverScreen.classList.add('hidden');
+        // });
+        submitScoreButton.addEventListener('click', async function() {
             const name = playerNameInput.value;
-            addScoreToLeaderboard(name, totalScore, level - 1);
-            playerNameInput.value = '';
-            displayLeaderboard();
-            gameOverScreen.classList.add('hidden');
+            try {
+                await addScoreToLeaderboard(name, totalScore, level - 1);
+                playerNameInput.value = '';
+                gameOverScreen.classList.add('hidden');
+                await displayLeaderboard(); // Wait for leaderboard to load
+            } catch (error) {
+                console.error('Error in score submission process:', error);
+                alert('There was an error submitting your score. Please try again.');
+            }
         });
-        
-        viewLeaderboardButton.addEventListener('click', function() {
+
+        // viewLeaderboardButton.addEventListener('click', function() {
+        //     startScreen.classList.add('hidden');
+        //     displayLeaderboard();
+        // });
+        viewLeaderboardButton.addEventListener('click', async function() {
             startScreen.classList.add('hidden');
-            displayLeaderboard();
+            await displayLeaderboard();
         });
-        
-        gameOverLeaderboardButton.addEventListener('click', function() {
+
+        // gameOverLeaderboardButton.addEventListener('click', function() {
+        //     gameOverScreen.classList.add('hidden');
+        //     displayLeaderboard();
+        // });
+        gameOverLeaderboardButton.addEventListener('click', async function() {
             gameOverScreen.classList.add('hidden');
-            displayLeaderboard();
+            await displayLeaderboard();
         });
         
         backToStartButton.addEventListener('click', function() {
