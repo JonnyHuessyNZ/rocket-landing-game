@@ -284,7 +284,7 @@
         // Supabase setup
         const supabaseUrl = 'https://rylpgxdkqlunwgchseof.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bHBneGRrcWx1bndnY2hzZW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNDM2NjIsImV4cCI6MjA2MTYxOTY2Mn0.f01PnebX0hduxboPPBHBN-giI-b7T_gSSs3p9RVCJlU';
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
         
         // Game state
@@ -362,7 +362,7 @@
         //     saveLeaderboard(leaderboard);
         // }
         async function addScoreToLeaderboard(name, score, levels) {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('scores')
                 .insert([{ name: name.trim() || 'Anonymous', score, levels }]);
 
@@ -390,7 +390,7 @@
         //     leaderboardScreen.classList.remove('hidden');
         // }
         async function displayLeaderboard() {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('scores')
                 .select('*')
                 .order('score', { ascending: false })
