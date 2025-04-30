@@ -37,11 +37,13 @@
         }
         return gk_fileData[filename] || "";
         }
-        </script><!DOCTYPE html>
+</script>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <title>Neutron Landing - Rocket Lab Mission Control Centre</title>
     <style>
         body {
@@ -279,6 +281,12 @@
         const gameOverMessageEl = document.getElementById('gameOverMessage');
         const leaderboardBody = document.getElementById('leaderboardBody');
         
+        // Supabase setup
+        const supabaseUrl = 'https://rylpgxdkqlunwgchseof.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bHBneGRrcWx1bndnY2hzZW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNDM2NjIsImV4cCI6MjA2MTYxOTY2Mn0.f01PnebX0hduxboPPBHBN-giI-b7T_gSSs3p9RVCJlU';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        
         // Game state
         let gameActive = false;
         let level = 1;
@@ -336,39 +344,79 @@
         });
         
         // Leaderboard functions
-        function loadLeaderboard() {
-            const leaderboard = JSON.parse(localStorage.getItem('neutronLandingLeaderboard') || '[]');
-            return leaderboard;
-        }
+        // function loadLeaderboard() {
+        //     const leaderboard = JSON.parse(localStorage.getItem('neutronLandingLeaderboard') || '[]');
+        //     return leaderboard;
+        // }
         
-        function saveLeaderboard(leaderboard) {
-            localStorage.setItem('neutronLandingLeaderboard', JSON.stringify(leaderboard));
-        }
+        // function saveLeaderboard(leaderboard) {
+        //     localStorage.setItem('neutronLandingLeaderboard', JSON.stringify(leaderboard));
+        // }
         
-        function addScoreToLeaderboard(name, score, levels) {
-            const leaderboard = loadLeaderboard();
-            leaderboard.push({ name: name.trim() || 'Anonymous', score, levels });
-            // Sort by score (descending) and limit to top 10
-            leaderboard.sort((a, b) => b.score - a.score);
-            if (leaderboard.length > 10) leaderboard.length = 10;
-            saveLeaderboard(leaderboard);
+        // function addScoreToLeaderboard(name, score, levels) {
+        //     const leaderboard = loadLeaderboard();
+        //     leaderboard.push({ name: name.trim() || 'Anonymous', score, levels });
+        //     // Sort by score (descending) and limit to top 10
+        //     leaderboard.sort((a, b) => b.score - a.score);
+        //     if (leaderboard.length > 10) leaderboard.length = 10;
+        //     saveLeaderboard(leaderboard);
+        // }
+        async function addScoreToLeaderboard(name, score, levels) {
+            const { error } = await supabase
+                .from('scores')
+                .insert([{ name: name.trim() || 'Anonymous', score, levels }]);
+
+            if (error) {
+                console.error('Error submitting score:', error);
+            } else {
+                displayLeaderboard();
+            }
         }
+
         
-        function displayLeaderboard() {
-            const leaderboard = loadLeaderboard();
+        // function displayLeaderboard() {
+        //     const leaderboard = loadLeaderboard();
+        //     leaderboardBody.innerHTML = '';
+        //     leaderboard.forEach((entry, index) => {
+        //         const row = document.createElement('tr');
+        //         row.innerHTML = `
+        //             <td>${index + 1}</td>
+        //             <td>${entry.name}</td>
+        //             <td>${entry.score}</td>
+        //             <td>${entry.levels}</td>
+        //         `;
+        //         leaderboardBody.appendChild(row);
+        //     });
+        //     leaderboardScreen.classList.remove('hidden');
+        // }
+        async function displayLeaderboard() {
+            const { data, error } = await supabase
+                .from('scores')
+                .select('*')
+                .order('score', { ascending: false })
+                .limit(10);
+
             leaderboardBody.innerHTML = '';
-            leaderboard.forEach((entry, index) => {
+
+            if (error) {
+                console.error('Error fetching leaderboard:', error);
+                return;
+            }
+
+            data.forEach((entry, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${entry.name}</td>
                     <td>${entry.score}</td>
-                    <td>${entry.levels}</td>
+                    <td>${entry.levels ?? '-'}</td>
                 `;
                 leaderboardBody.appendChild(row);
             });
+
             leaderboardScreen.classList.remove('hidden');
         }
+
         
         // Game functions
         function initLevel() {
