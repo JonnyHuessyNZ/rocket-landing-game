@@ -343,12 +343,6 @@
             keys[e.key] = false;
         });
         
-        // Leaderboard functions
-        // function loadLeaderboard() {
-        //     const leaderboard = JSON.parse(localStorage.getItem('neutronLandingLeaderboard') || '[]');
-        //     return leaderboard;
-        // }
-        
 
         async function addScoreToLeaderboard(name, score, levels) {
             console.log('Submitting score to Supabase:', { name: name.trim() || 'Anonymous', score, levels });
@@ -371,21 +365,6 @@
             }
         }
         
-        // function displayLeaderboard() {
-        //     const leaderboard = loadLeaderboard();
-        //     leaderboardBody.innerHTML = '';
-        //     leaderboard.forEach((entry, index) => {
-        //         const row = document.createElement('tr');
-        //         row.innerHTML = `
-        //             <td>${index + 1}</td>
-        //             <td>${entry.name}</td>
-        //             <td>${entry.score}</td>
-        //             <td>${entry.levels}</td>
-        //         `;
-        //         leaderboardBody.appendChild(row);
-        //     });
-        //     leaderboardScreen.classList.remove('hidden');
-        // }
 
         async function displayLeaderboard() {
             console.log('Fetching leaderboard data...');
@@ -671,13 +650,6 @@
             requestAnimationFrame(gameLoop);
         });
         
-        // submitScoreButton.addEventListener('click', function() {
-        //     const name = playerNameInput.value;
-        //     addScoreToLeaderboard(name, totalScore, level - 1);
-        //     playerNameInput.value = '';
-        //     displayLeaderboard();
-        //     gameOverScreen.classList.add('hidden');
-        // });
         submitScoreButton.addEventListener('click', async function() {
             const name = playerNameInput.value;
             try {
@@ -691,19 +663,11 @@
             }
         });
 
-        // viewLeaderboardButton.addEventListener('click', function() {
-        //     startScreen.classList.add('hidden');
-        //     displayLeaderboard();
-        // });
         viewLeaderboardButton.addEventListener('click', async function() {
             startScreen.classList.add('hidden');
             await displayLeaderboard();
         });
 
-        // gameOverLeaderboardButton.addEventListener('click', function() {
-        //     gameOverScreen.classList.add('hidden');
-        //     displayLeaderboard();
-        // });
         gameOverLeaderboardButton.addEventListener('click', async function() {
             gameOverScreen.classList.add('hidden');
             await displayLeaderboard();
